@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 律師國考戰鬥看板</title>
+    <style>
+        :root {
+            --bg-color: #F5F5DC; /* 米色底 */
+            --primary-green: #2E8B57; /* 專注綠 */
+            --text-color: #3E442C;
+            --card-bg: #FFFFFF;
+        }
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: 'PingFang TC', sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { max-width: 1000px; width: 100%; }
+        header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid var(--primary-green); padding-bottom: 10px; }
+        .sync-bar { background: #E8F5E9; padding: 10px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .sync-btn { background: var(--primary-green); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
+        .countdown-section { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .countdown-card { background: var(--card-bg); padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .days { font-size: 2.5em; font-weight: bold; color: var(--primary-green); }
+        .pomodoro-section { background: var(--primary-green); color: white; padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 25px; }
+        #timer-display { font-size: 3.5em; font-weight: bold; margin: 10px 0; font-family: monospace; }
+        .timer-btn { background: white; color: var(--primary-green); border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin: 0 5px; }
+        .progress-card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        .progress-bar-container { background: #E0E0E0; border-radius: 10px; height: 18px; margin: 10px 0; overflow: hidden; }
+        .progress-fill { background: var(--primary-green); height: 100%; width: 0%; transition: width 0.6s ease; }
+        .checklist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        .subject-group { background: var(--card-bg); padding: 12px; border-radius: 8px; border-left: 5px solid var(--primary-green); box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+        .subject-title { font-weight: bold; color: var(--primary-green); margin-bottom: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+        .checkbox-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 5px; }
+        .check-item { font-size: 0.8em; display: flex; align-items: center; background: #f9f9f9; padding: 3px; border-radius: 3px; }
+        @media (max-width: 600px) { .countdown-section { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>2026 律師國考戰鬥看板</h1>
+        <p id="current-date"></p>
+    </header>
+
+    <div class="sync-bar">
+        <button class="sync-btn" onclick="exportProgress()">產生並複製同步代碼</button>
+        <button class="sync-btn" style="background:#555" onclick="importProgress()">匯入同步代碼</button>
+    </div>
+
+    <div class="countdown-section">
+        <div class="countdown-card"><div>距離 一試 (115/08/01)</div><div class="days" id="d1">--</div><div>DAYS</div></div>
+        <div class="countdown-card"><div>距離 二試 (115/10/25)</div><div class="days" id="d2">--</div><div>DAYS</div></div>
+    </div>
+
+    <div class="pomodoro-section">
+        <div id="timer-display">50:00</div>
+        <button class="timer-btn" onclick="startTimer()">開始</button>
+        <button class="timer-btn" onclick="pauseTimer()">暫停</button>
+        <button class="timer-btn" onclick="resetTimer()">重設</button>
+    </div>
+
+    <div class="progress-card">
+        <div style="display:flex; justify-content:space-between; font-weight:bold;">
+            <span>總進度 (剩餘 76 堂)</span>
+            <span id="total-pct">0%</span>
+        </div>
+        <div class="progress-bar-container"><div id="total-bar" class="progress-fill"></div></div>
+    </div>
+
+    <div class="checklist-grid" id="lists"></div>
+</div>
+
+<script>
+    // 根據您的進度表精確設定
+    const lessonData = [
+        { id: "civ", name: "民法財產法", range: [9, 10, 11, 12] },
+        { id: "fam", name: "身分法", range: [1, 2, 3, 4] },
+        { id: "cri", name: "刑法", count: 12 },
+        { id: "cp", name: "民事訴訟法", count: 12 },
+        { id: "crp", name: "刑事訴訟法", count: 9 },
+        { id: "con", name: "憲法", count: 8 },
+        { id: "adm", name: "行政法", count: 10 },
+        { id: "com", name: "公司法", count: 7 },
+        { id: "sec", name: "證券交易法", count: 6 },
+        { id: "ins", name: "保險法", count: 4 }
+    ];
+
+    function render() {
+        const container = document.getElementById('lists');
+        lessonData.forEach(sub => {
+            let html = `<div class="subject-group"><div class="subject-title">${sub.name}</div><div class="checkbox-container">`;
+            const items = sub.range || Array.from({length: sub.count}, (_, i) => i + 1);
+            items.forEach(num => {
+                html += `<label class="check-item"><input type="checkbox" id="${sub.id}-${num}" class="chk"> L${num}</label>`;
+            });
+            container.innerHTML += html + `</div></div>`;
+        });
+        updateDate();
+        updateCountdowns();
+        loadProgress();
+        document.querySelectorAll('.chk').forEach(c => c.addEventListener('change', () => { saveProgress(); updateUI(); }));
+    }
+
+    function updateDate() {
+        const n = new Date();
+        document.getElementById('current-date').innerText = `${n.getFullYear()}/${n.getMonth()+1}/${n.getDate()} | 每一秒的努力都在累積實力`;
+    }
+
+    function updateCountdowns() {
+        const now = new Date();
+        const d1 = Math.ceil((new Date("2026-08-01") - now) / 86400000);
+        const d2 = Math.ceil((new Date("2026-10-25") - now) / 86400000);
+        document.getElementById('d1').innerText = d1;
+        document.getElementById('d2').innerText = d2;
+    }
+
+    let timer; let timeLeft = 3000;
+    function startTimer() { if(!timer) timer = setInterval(() => { if(timeLeft<=0) { clearInterval(timer); alert("休息一下吧！"); return; } timeLeft--; updateT(); }, 1000); }
+    function pauseTimer() { clearInterval(timer); timer = null; }
+    function resetTimer() { pauseTimer(); timeLeft = 3000; updateT(); }
+    function updateT() { const m=Math.floor(timeLeft/60), s=timeLeft%60; document.getElementById('timer-display').innerText=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
+
+    function updateUI() {
+        const done = document.querySelectorAll('.chk:checked').length;
+        const total = document.querySelectorAll('.chk').length;
+        const pct = Math.round((done/total)*100);
+        document.getElementById('total-bar').style.width = pct + '%';
+        document.getElementById('total-pct').innerText = pct + '%';
+    }
+
+    function saveProgress() {
+        const ids = Array.from(document.querySelectorAll('.chk:checked')).map(el => el.id);
+        localStorage.setItem('law_progress_v4', JSON.stringify(ids));
+    }
+
+    function loadProgress() {
+        const saved = localStorage.getItem('law_progress_v4');
+        if(saved) JSON.parse(saved).forEach(id => { const el = document.getElementById(id); if(el) el.checked = true; });
+        updateUI();
+    }
+
+    function exportProgress() {
+        const data = localStorage.getItem('law_progress_v4');
+        if(!data) return alert("尚無進度");
+        navigator.clipboard.writeText(btoa(data)).then(() => alert("代碼已複製！請傳送到其他裝置匯入。"));
+    }
+
+    function importProgress() {
+        const code = prompt("請貼上同步代碼：");
+        if(code) { localStorage.setItem('law_progress_v4', atob(code)); location.reload(); }
+    }
+
+    render();
+</script>
+</body>
+</html>
